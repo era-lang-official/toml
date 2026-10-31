@@ -1,0 +1,164 @@
+// github.com/era-lang-official/toml
+// Fast TOML Parser and Serializer for Configuration Files
+
+pub enum TomlValue {
+    String(string),
+    Integer(i64),
+    Bool(bool),
+}
+
+pub struct TomlEntry {
+    pub table: string,
+    pub key: string,
+    pub value: TomlValue,
+}
+
+pub struct TomlDoc {
+    pub entries: Vec<TomlEntry>,
+}
+
+impl TomlDoc {
+    pub fn new() -> TomlDoc {
+        return TomlDoc { entries: Vec::<TomlEntry>::new() };
+    }
+
+    pub fn set_str(&mut self, table: string, key: string, val: string) {
+        self.entries.push(TomlEntry { table, key, value: TomlValue::String(val) });
+    }
+
+    pub fn set_int(&mut self, table: string, key: string, val: i64) {
+        self.entries.push(TomlEntry { table, key, value: TomlValue::Integer(val) });
+    }
+
+    pub fn set_bool(&mut self, table: string, key: string, val: bool) {
+        self.entries.push(TomlEntry { table, key, value: TomlValue::Bool(val) });
+    }
+
+    pub fn get_str(&self, table: string, key: string) -> Option<string> {
+        let mut i: usize = 0;
+        while i < self.entries.len() {
+            let e: TomlEntry = self.entries[i].clone();
+            if e.table == table && e.key == key {
+                match e.value {
+                    TomlValue::String(s) => return Some(s),
+                    _ => return None,
+                }
+            }
+            i += 1;
+        }
+        return None;
+    }
+
+    pub fn get_int(&self, table: string, key: string) -> Option<i64> {
+        let mut i: usize = 0;
+        while i < self.entries.len() {
+            let e: TomlEntry = self.entries[i].clone();
+            if e.table == table && e.key == key {
+                match e.value {
+                    TomlValue::Integer(n) => return Some(n),
+                    _ => return None,
+                }
+            }
+            i += 1;
+        }
+        return None;
+    }
+
+    pub fn get_bool(&self, table: string, key: string) -> Option<bool> {
+        let mut i: usize = 0;
+        while i < self.entries.len() {
+            let e: TomlEntry = self.entries[i].clone();
+            if e.table == table && e.key == key {
+                match e.value {
+                    TomlValue::Bool(b) => return Some(b),
+                    _ => return None,
+                }
+            }
+            i += 1;
+        }
+        return None;
+    }
+
+    pub fn stringify(&self) -> string {
+        let mut sb = StringBuilder::new();
+        let mut current_table = "".to_string();
+
+        let mut i: usize = 0;
+        while i < self.entries.len() {
+            let e: TomlEntry = self.entries[i].clone();
+            if e.table != current_table {
+                current_table = e.table.clone();
+                if current_table != "" {
+                    sb.append("\n[");
+                    sb.append(current_table.clone());
+                    sb.append("]\n");
+                }
+            }
+            sb.append(e.key.clone());
+            sb.append(" = ");
+            match e.value {
+                TomlValue::String(s) => {
+                    sb.append("\"");
+                    sb.append(s);
+                    sb.append("\"\n");
+                }
+                TomlValue::Integer(n) => {
+                    sb.append(f"{n}\n");
+                }
+                TomlValue::Bool(b) => {
+                    if b { sb.append("true\n"); } else { sb.append("false\n"); }
+                }
+            }
+            i += 1;
+        }
+        return sb.to_string();
+    }
+}
+
+pub fn parse_toml(input: string) -> Result<TomlDoc, string> {
+    let mut doc = TomlDoc::new();
+    let lines: Vec<string> = input.split("\n");
+    let mut current_table = "".to_string();
+
+    let mut i: usize = 0;
+    while i < lines.len() {
+        let line = lines[i].clone().trim();
+        if line == "" || line.starts_with("#") {
+            i += 1;
+            continue;
+        }
+
+        if line.starts_with("[") && line.ends_with("]") {
+            current_table = line[1..(line.len() - 1)].to_string().trim();
+            i += 1;
+            continue;
+        }
+
+        if line.contains("=") {
+            let parts: Vec<string> = line.split("=");
+            if parts.len() >= 2 {
+                let key = parts[0].trim();
+                let mut raw_val = parts[1].trim();
+
+                if raw_val.starts_with("\"") && raw_val.ends_with("\"") && raw_val.len() >= 2 {
+                    let s_val = raw_val[1..(raw_val.len() - 1)].to_string();
+                    doc.set_str(current_table.clone(), key, s_val);
+                } else if raw_val == "true" {
+                    doc.set_bool(current_table.clone(), key, true);
+                } else if raw_val == "false" {
+                    doc.set_bool(current_table.clone(), key, false);
+                } else {
+                    let parsed = raw_val.parse_i64();
+                    match parsed {
+                        Ok(n) => doc.set_int(current_table.clone(), key, n),
+                        Err(_) => doc.set_str(current_table.clone(), key, raw_val),
+                    }
+                }
+            }
+        }
+
+        i += 1;
+    }
+
+    return Ok(doc);
+}
